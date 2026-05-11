@@ -249,6 +249,41 @@ def process_track(track_id, artist_name, album, track_name):
             )
             sys.exit(1)
 
+    def get_track(track_id, retries=0):
+        track_url = f"https://api.spotify.com/v1/tracks/{track_id}"
+        headers = {"Authorization": f"Bearer {SPOTIFY_TOKEN}"}
+        try:
+            response = requests.get(track_url, headers=headers)
+        except requests.exceptions.ConnectionError:
+            logging.error(f"{LIGHT_RED}Spotify Error: Unable to reach server.{RESET}")
+            sys.exit(1)
+        if response.status_code != 200:
+            if response.status_code == 429:
+                if retries >= 5:
+                    logging.error(
+                        f"{LIGHT_RED}Spotify Error {response.status_code}: Max retries exceeded. Exiting.{RESET}"
+                    )
+                    sys.exit(1)
+                retry_after = int(response.headers.get("Retry-After", 60))
+                logging.warning(
+                    f"{LIGHT_YELLOW}Spotify rate limited (429). Retrying after {retry_after + 2}s (attempt {retries + 1}/5)...{RESET}"
+                )
+                time.sleep(retry_after + 2)
+                return get_track(track_id, retries + 1)
+            else:
+                logging.error(
+                    f"{LIGHT_RED}Spotify Error {response.status_code}: {response.text}{RESET}"
+                )
+                sys.exit(1)
+        time.sleep(0.3)
+        try:
+            return response.json()
+        except ValueError as e:
+            logging.error(
+                f"{LIGHT_RED}Spotify Error: Error decoding JSON from Spotify API: {e}{RESET}"
+            )
+            sys.exit(1)
+
     def remove_parentheses_content(s):
         """Remove content inside parentheses from a string."""
         return re.sub(r"\s*\(.*?\)\s*", " ", s).strip()
@@ -284,7 +319,8 @@ def process_track(track_id, artist_name, album, track_name):
     if found_track:
         items = spotify_data["tracks"]["items"]
         best = max(items, key=lambda t: t.get("popularity", 0))
-        popularity = best.get("popularity", 0)
+        track_data = get_track(best["id"])
+        popularity = track_data.get("popularity", 0)
         rating = get_rating_from_popularity(popularity)
         popularity_str = f"{popularity} " if 0 <= popularity <= 9 else str(popularity)
         message = f"    p:{LIGHT_CYAN}{popularity_str}{RESET} → r:{LIGHT_BLUE}{rating}{RESET} | {LIGHT_GREEN}{track_name}{RESET}"
