@@ -2,7 +2,6 @@ with open("VERSION", "r") as file:
     __version__ = file.read().strip()
 
 import argparse
-import base64
 import json
 import logging
 import os
@@ -27,8 +26,7 @@ start_time = time.time()
 NAV_BASE_URL = os.getenv("NAV_BASE_URL")
 NAV_USER = os.getenv("NAV_USER")
 NAV_PASS = os.getenv("NAV_PASS")
-SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
-SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+LASTFM_API_KEY = os.getenv("LASTFM_API_KEY")
 
 # Colors
 LIGHT_PURPLE = Fore.MAGENTA + Style.BRIGHT
@@ -68,25 +66,6 @@ logging.getLogger().addHandler(file_handler)
 
 # Auth
 HEX_ENCODED_PASS = NAV_PASS.encode().hex()
-TOKEN_AUTH = base64.b64encode(
-    f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()
-).decode()
-TOKEN_URL = "https://accounts.spotify.com/api/token"
-response = requests.post(
-    TOKEN_URL,
-    headers={"Authorization": f"Basic {TOKEN_AUTH}"},
-    data={"grant_type": "client_credentials"},
-)
-
-if response.status_code != 200:
-    error_info = response.json()  # Assuming the error response is in JSON format
-    error_description = error_info.get("error_description", "Unknown error")
-    logging.error(
-        f"{LIGHT_RED}Spotify Authentication Error: {error_description}{RESET}"
-    )
-    sys.exit(1)
-
-SPOTIFY_TOKEN = response.json()["access_token"]
 
 init(autoreset=True)
 
@@ -171,7 +150,7 @@ if ARTIST_IDs and (START != 0 or LIMIT != 0):
 
 if not args.preview:
     logging.info(
-        f"{BOLD}Syncing Spotify {LIGHT_CYAN}popularity{RESET}{BOLD} with Navidrome {LIGHT_BLUE}rating{RESET}...{RESET}"
+        f"{BOLD}Syncing Last.fm {LIGHT_CYAN}listeners{RESET}{BOLD} with Navidrome {LIGHT_BLUE}rating{RESET}...{RESET}"
     )
 
 
@@ -193,137 +172,58 @@ def url_encode(string):
     return urllib.parse.quote_plus(string)
 
 
-def get_rating_from_popularity(popularity):
-    popularity = float(popularity)
-    if popularity < 16.66:
+def get_rating_from_listeners(listeners):
+    listeners = int(listeners)
+    if listeners < 1000:
         return 0
-    elif popularity < 33.33:
+    elif listeners < 50000:
         return 1
-    elif popularity < 50:
+    elif listeners < 200000:
         return 2
-    elif popularity < 66.66:
+    elif listeners < 1000000:
         return 3
-    elif popularity < 83.33:
+    elif listeners < 5000000:
         return 4
     else:
         return 5
 
 
 def process_track(track_id, artist_name, album, track_name):
-    def search_spotify(query, retries=0):
-        spotify_url = f"https://api.spotify.com/v1/search?q={query}&type=track&limit=5"
-        headers = {"Authorization": f"Bearer {SPOTIFY_TOKEN}"}
-
+    def get_lastfm_info(artist, track):
+        encoded_artist = url_encode(artist)
+        encoded_track = url_encode(track)
+        lastfm_url = f"https://ws.audioscrobbler.com/2.0/?method=track.getInfo&artist={encoded_artist}&track={encoded_track}&api_key={LASTFM_API_KEY}&format=json&autocorrect=1"
         try:
-            response = requests.get(spotify_url, headers=headers)
+            response = requests.get(lastfm_url)
         except requests.exceptions.ConnectionError:
-            logging.error(f"{LIGHT_RED}Spotify Error: Unable to reach server.{RESET}")
+            logging.error(f"{LIGHT_RED}Last.fm Error: Unable to reach server.{RESET}")
             sys.exit(1)
-
-        if response.status_code != 200:
-            if response.status_code == 429:
-                if retries >= 5:
-                    logging.error(
-                        f"{LIGHT_RED}Spotify Error {response.status_code}: Max retries exceeded. Exiting.{RESET}"
-                    )
-                    sys.exit(1)
-                retry_after = int(response.headers.get("Retry-After", 60))
-                logging.warning(
-                    f"{LIGHT_YELLOW}Spotify rate limited (429). Retrying after {retry_after + 2}s (attempt {retries + 1}/5)...{RESET}"
-                )
-                time.sleep(retry_after + 2)
-                return search_spotify(query, retries + 1)
-            else:
-                logging.error(
-                    f"{LIGHT_RED}Spotify Error {response.status_code}: {response.text}{RESET}"
-                )
-                sys.exit(1)
-        time.sleep(0.3)
-        logging.info(f"      [DEBUG] query: {query}")
-        logging.info(f"      [DEBUG] items: {[(t['name'], t['artists'][0]['name'], t.get('popularity')) for t in response.json().get('tracks', {}).get('items', [])]}")
         try:
-            return response.json()
+            data = response.json()
         except ValueError as e:
             logging.error(
-                f"{LIGHT_RED}Spotify Error: Error decoding JSON from Spotify API: {e}{RESET}"
+                f"{LIGHT_RED}Last.fm Error: Error decoding JSON from Last.fm API: {e}{RESET}"
             )
             sys.exit(1)
+        if data.get("error"):
+            return None
+        track_info = data.get("track")
+        if track_info is None:
+            return None
+        listeners = track_info.get("listeners")
+        if listeners is None:
+            return None
+        logging.info(f"      [DEBUG] url: {lastfm_url}")
+        logging.info(f"      [DEBUG] listeners: {listeners}")
+        return int(listeners)
 
-    def get_track(track_id, retries=0):
-        track_url = f"https://api.spotify.com/v1/tracks/{track_id}"
-        headers = {"Authorization": f"Bearer {SPOTIFY_TOKEN}"}
-        try:
-            response = requests.get(track_url, headers=headers)
-        except requests.exceptions.ConnectionError:
-            logging.error(f"{LIGHT_RED}Spotify Error: Unable to reach server.{RESET}")
-            sys.exit(1)
-        if response.status_code != 200:
-            if response.status_code == 429:
-                if retries >= 5:
-                    logging.error(
-                        f"{LIGHT_RED}Spotify Error {response.status_code}: Max retries exceeded. Exiting.{RESET}"
-                    )
-                    sys.exit(1)
-                retry_after = int(response.headers.get("Retry-After", 60))
-                logging.warning(
-                    f"{LIGHT_YELLOW}Spotify rate limited (429). Retrying after {retry_after + 2}s (attempt {retries + 1}/5)...{RESET}"
-                )
-                time.sleep(retry_after + 2)
-                return get_track(track_id, retries + 1)
-            else:
-                logging.error(
-                    f"{LIGHT_RED}Spotify Error {response.status_code}: {response.text}{RESET}"
-                )
-                sys.exit(1)
-        time.sleep(0.3)
-        try:
-            return response.json()
-        except ValueError as e:
-            logging.error(
-                f"{LIGHT_RED}Spotify Error: Error decoding JSON from Spotify API: {e}{RESET}"
-            )
-            sys.exit(1)
+    listeners = get_lastfm_info(artist_name, track_name)
+    time.sleep(0.2)
 
-    def remove_parentheses_content(s):
-        """Remove content inside parentheses from a string."""
-        return re.sub(r"\s*\(.*?\)\s*", " ", s).strip()
-
-    encoded_track_name = url_encode(track_name)
-    encoded_artist_name = url_encode(artist_name)
-    encoded_album = url_encode(album)
-
-    # Primary Search (with album)
-    spotify_data = search_spotify(
-        f"{encoded_track_name}%20artist:{encoded_artist_name}%20album:{encoded_album}"
-    )
-
-    found_track = len(spotify_data.get("tracks", {}).get("items", [])) > 0
-
-    if not found_track:
-        # Secondary Search (without album and parentheses content)
-        sanitized_track_name = url_encode(remove_parentheses_content(track_name))
-        spotify_data = search_spotify(
-            f"{sanitized_track_name}%20artist:{encoded_artist_name}"
-        )
-        found_track = len(spotify_data.get("tracks", {}).get("items", [])) > 0
-
-    if not found_track:
-        # Tertiary Search (replace 'Part' with 'Pt.')
-        modified_track_name = track_name.replace("Part", "Pt.")
-        encoded_modified_track_name = url_encode(modified_track_name)
-        spotify_data = search_spotify(
-            f"{encoded_modified_track_name}%20artist:{encoded_artist_name}"
-        )
-        found_track = len(spotify_data.get("tracks", {}).get("items", []))
-
-    if found_track:
-        items = spotify_data["tracks"]["items"]
-        best = max(items, key=lambda t: t.get("popularity", 0))
-        track_data = get_track(best["id"])
-        popularity = track_data.get("popularity", 0)
-        rating = get_rating_from_popularity(popularity)
-        popularity_str = f"{popularity} " if 0 <= popularity <= 9 else str(popularity)
-        message = f"    p:{LIGHT_CYAN}{popularity_str}{RESET} → r:{LIGHT_BLUE}{rating}{RESET} | {LIGHT_GREEN}{track_name}{RESET}"
+    if listeners is not None:
+        rating = get_rating_from_listeners(listeners)
+        listeners_str = f"{listeners} " if 0 <= listeners <= 9 else str(listeners)
+        message = f"    l:{LIGHT_CYAN}{listeners_str}{RESET} → r:{LIGHT_BLUE}{rating}{RESET} | {LIGHT_GREEN}{track_name}{RESET}"
         logging.info(message)
         if PREVIEW != 1:
             nav_url = f"{NAV_BASE_URL}/rest/setRating?u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=myapp&id={track_id}&rating={rating}"
@@ -341,7 +241,7 @@ def process_track(track_id, artist_name, album, track_name):
         FOUND_AND_UPDATED += 1
     else:
         logging.info(
-            f"    p:{LIGHT_RED}??{RESET} → r:{LIGHT_BLUE}0{RESET} | {LIGHT_RED}(not found) {track_name}{RESET}"
+            f"    l:{LIGHT_RED}??{RESET} → r:{LIGHT_BLUE}0{RESET} | {LIGHT_RED}(not found) {track_name}{RESET}"
         )
         global UNMATCHED_TRACKS
         UNMATCHED_TRACKS.append(f"{artist_name} - {album} - {track_name}")
