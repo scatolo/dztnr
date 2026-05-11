@@ -211,7 +211,7 @@ def get_rating_from_popularity(popularity):
 
 def process_track(track_id, artist_name, album, track_name):
     def search_spotify(query, retries=0):
-        spotify_url = f"https://api.spotify.com/v1/search?q={query}&type=track&limit=1"
+        spotify_url = f"https://api.spotify.com/v1/search?q={query}&type=track&limit=5"
         headers = {"Authorization": f"Bearer {SPOTIFY_TOKEN}"}
 
         try:
@@ -239,6 +239,8 @@ def process_track(track_id, artist_name, album, track_name):
                 )
                 sys.exit(1)
         time.sleep(0.3)
+        logging.info(f"      [DEBUG] query: {query}")
+        logging.info(f"      [DEBUG] items: {[(t['name'], t['artists'][0]['name'], t.get('popularity')) for t in response.json().get('tracks', {}).get('items', [])]}")
         try:
             return response.json()
         except ValueError as e:
@@ -280,7 +282,9 @@ def process_track(track_id, artist_name, album, track_name):
         found_track = len(spotify_data.get("tracks", {}).get("items", []))
 
     if found_track:
-        popularity = spotify_data["tracks"]["items"][0].get("popularity", 0)
+        items = spotify_data["tracks"]["items"]
+        best = max(items, key=lambda t: t.get("popularity", 0))
+        popularity = best.get("popularity", 0)
         rating = get_rating_from_popularity(popularity)
         popularity_str = f"{popularity} " if 0 <= popularity <= 9 else str(popularity)
         message = f"    p:{LIGHT_CYAN}{popularity_str}{RESET} → r:{LIGHT_BLUE}{rating}{RESET} | {LIGHT_GREEN}{track_name}{RESET}"
