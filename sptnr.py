@@ -26,7 +26,6 @@ start_time = time.time()
 NAV_BASE_URL = os.getenv("NAV_BASE_URL")
 NAV_USER = os.getenv("NAV_USER")
 NAV_PASS = os.getenv("NAV_PASS")
-LASTFM_API_KEY = os.getenv("LASTFM_API_KEY")
 
 # Colors
 LIGHT_PURPLE = Fore.MAGENTA + Style.BRIGHT
@@ -150,7 +149,7 @@ if ARTIST_IDs and (START != 0 or LIMIT != 0):
 
 if not args.preview:
     logging.info(
-        f"{BOLD}Syncing Last.fm {LIGHT_CYAN}listeners{RESET}{BOLD} with Navidrome {LIGHT_BLUE}rating{RESET}...{RESET}"
+        f"{BOLD}Syncing Deezer {LIGHT_CYAN}rank{RESET}{BOLD} with Navidrome {LIGHT_BLUE}rating{RESET}...{RESET}"
     )
 
 
@@ -172,58 +171,54 @@ def url_encode(string):
     return urllib.parse.quote_plus(string)
 
 
-def get_rating_from_listeners(listeners):
-    listeners = int(listeners)
-    if listeners < 1000:
+def get_rating_from_rank(rank):
+    rank = int(rank)
+    if rank < 10000:
         return 0
-    elif listeners < 50000:
+    elif rank < 100000:
         return 1
-    elif listeners < 200000:
+    elif rank < 300000:
         return 2
-    elif listeners < 1000000:
+    elif rank < 600000:
         return 3
-    elif listeners < 5000000:
+    elif rank < 850000:
         return 4
     else:
         return 5
 
 
 def process_track(track_id, artist_name, album, track_name):
-    def get_lastfm_info(artist, track):
-        encoded_artist = url_encode(artist)
-        encoded_track = url_encode(track)
-        lastfm_url = f"https://ws.audioscrobbler.com/2.0/?method=track.getInfo&artist={encoded_artist}&track={encoded_track}&api_key={LASTFM_API_KEY}&format=json&autocorrect=1"
+    def get_deezer_rank(artist, track):
+        encoded_query = url_encode(f"{artist}+{track}")
+        deezer_url = f"https://api.deezer.com/search?q={encoded_query}"
         try:
-            response = requests.get(lastfm_url)
+            response = requests.get(deezer_url)
         except requests.exceptions.ConnectionError:
-            logging.error(f"{LIGHT_RED}Last.fm Error: Unable to reach server.{RESET}")
+            logging.error(f"{LIGHT_RED}Deezer Error: Unable to reach server.{RESET}")
             sys.exit(1)
         try:
             data = response.json()
         except ValueError as e:
             logging.error(
-                f"{LIGHT_RED}Last.fm Error: Error decoding JSON from Last.fm API: {e}{RESET}"
+                f"{LIGHT_RED}Deezer Error: Error decoding JSON from Deezer API: {e}{RESET}"
             )
             sys.exit(1)
-        if data.get("error"):
+        if not data.get("data"):
             return None
-        track_info = data.get("track")
-        if track_info is None:
+        rank = data["data"][0].get("rank")
+        if rank is None:
             return None
-        listeners = track_info.get("listeners")
-        if listeners is None:
-            return None
-        logging.info(f"      [DEBUG] url: {lastfm_url}")
-        logging.info(f"      [DEBUG] listeners: {listeners}")
-        return int(listeners)
+        logging.info(f"      [DEBUG] url: {deezer_url}")
+        logging.info(f"      [DEBUG] rank: {rank}")
+        return int(rank)
 
-    listeners = get_lastfm_info(artist_name, track_name)
+    rank = get_deezer_rank(artist_name, track_name)
     time.sleep(0.2)
 
-    if listeners is not None:
-        rating = get_rating_from_listeners(listeners)
-        listeners_str = f"{listeners} " if 0 <= listeners <= 9 else str(listeners)
-        message = f"    l:{LIGHT_CYAN}{listeners_str}{RESET} → r:{LIGHT_BLUE}{rating}{RESET} | {LIGHT_GREEN}{track_name}{RESET}"
+    if rank is not None:
+        rating = get_rating_from_rank(rank)
+        rank_str = f"{rank} " if 0 <= rank <= 9 else str(rank)
+        message = f"    r:{LIGHT_CYAN}{rank_str}{RESET} → ★:{LIGHT_BLUE}{rating}{RESET} | {LIGHT_GREEN}{track_name}{RESET}"
         logging.info(message)
         if PREVIEW != 1:
             nav_url = f"{NAV_BASE_URL}/rest/setRating?u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=myapp&id={track_id}&rating={rating}"
@@ -241,7 +236,7 @@ def process_track(track_id, artist_name, album, track_name):
         FOUND_AND_UPDATED += 1
     else:
         logging.info(
-            f"    l:{LIGHT_RED}??{RESET} → r:{LIGHT_BLUE}0{RESET} | {LIGHT_RED}(not found) {track_name}{RESET}"
+            f"    r:{LIGHT_RED}??{RESET} → ★:{LIGHT_BLUE}0{RESET} | {LIGHT_RED}(not found) {track_name}{RESET}"
         )
         global UNMATCHED_TRACKS
         UNMATCHED_TRACKS.append(f"{artist_name} - {album} - {track_name}")
