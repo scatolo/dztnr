@@ -1,4 +1,4 @@
-# Deezer Rank to Navidrome Ratings (sptnr)
+# Deezer Rank to Navidrome Ratings (dztnr)
 
 This script repurposes the star ratings in Navidrome by aligning them with Deezer's track rank. It fetches the Deezer popularity rank (0–1,000,000+) for each track via the public search API and maps it to a 1–5 star rating. Higher rank = more popular on Deezer. **No API key is required** — the Deezer API is completely open.
 
@@ -44,12 +44,12 @@ This script repurposes the star ratings in Navidrome by aligning them with Deeze
 ## Quick Start
 
 ```console
-docker build -t sptnr-local .
+docker build -t dztnr-local .
 docker run -t \
   -e NAV_BASE_URL=your_navidrome_server_url \
   -e NAV_USER=your_navidrome_username \
   -e NAV_PASS=your_navidrome_password \
-  sptnr-local
+  dztnr-local
 ```
 
 **Note**: The `-t` flag is used to allocate a pseudo-terminal which assists in displaying colored and bold text in the terminal output, which this script uses.
@@ -65,13 +65,13 @@ Clone and build:
 
 ```bash
 git clone <this-repo-url>
-cd sptnr-main
-docker build -t sptnr-local .
+cd dztnr-main
+docker build -t dztnr-local .
 docker run -t \
   -e NAV_BASE_URL=your_navidrome_server_url \
   -e NAV_USER=your_navidrome_username \
   -e NAV_PASS=your_navidrome_password \
-  sptnr-local
+  dztnr-local
 ```
 
 Run natively with Python:
@@ -80,7 +80,7 @@ Run natively with Python:
 cp .env.example .env
 # Edit .env with your Navidrome URL and credentials
 pip install -r requirements.txt
-python sptnr.py -p -l 1   # preview mode, first artist only
+python dztnr.py -p -l 1   # preview mode, first artist only
 ```
 
 ### Using Docker Compose
@@ -91,8 +91,8 @@ python sptnr.py -p -l 1   # preview mode, first artist only
    version: "3.8"
 
    services:
-     sptnr:
-       container_name: sptnr
+     dztnr:
+       container_name: dztnr
        build: .
        environment:
          - NAV_BASE_URL=your_navidrome_server_url
@@ -105,14 +105,14 @@ python sptnr.py -p -l 1   # preview mode, first artist only
 2. **Run the Script**:
 
    ```console
-   docker-compose run sptnr
+   docker-compose run dztnr
    ```
 
 ## Running Natively or Building Locally
 
 ### Running Natively (Without Docker)
 
-1. **Clone the Repository**: Clone or download the necessary files (`sptnr.py`, `requirements.txt`, `.env.example`).
+1. **Clone the Repository**: Clone or download the necessary files (`dztnr.py`, `requirements.txt`, `.env.example`).
 
 2. **Install Python Packages**:
 
@@ -130,7 +130,7 @@ python sptnr.py -p -l 1   # preview mode, first artist only
 4. **Run the Script**:
 
    ```console
-   python sptnr.py [options]
+   python dztnr.py [options]
    ```
 
 ### Building and Running with Docker Locally
@@ -150,7 +150,7 @@ python sptnr.py -p -l 1   # preview mode, first artist only
 
    ```console
    docker-compose build
-   docker-compose run sptnr [options]
+   docker-compose run dztnr [options]
    ```
 
 ## Usage
@@ -168,42 +168,42 @@ python sptnr.py -p -l 1   # preview mode, first artist only
 1. **Running Natively (Python)**:
 
    ```console
-   python sptnr.py [options]
+   python dztnr.py [options]
    ```
 
 2. **Using Docker Compose**:
 
    ```console
-   docker-compose run sptnr [options]
+   docker-compose run dztnr [options]
    ```
 
 3. **Using Docker Run**:
 
    ```console
-   docker run -t [environment variables] sptnr-local [options]
+   docker run -t [environment variables] dztnr-local [options]
    ```
 
 ## Examples
 
 - **Preview Mode**:
 
-  - Python: `python sptnr.py -p`
-  - Docker Compose: `docker-compose run sptnr -p`
+  - Python: `python dztnr.py -p`
+  - Docker Compose: `docker-compose run dztnr -p`
 
 - **Process Specific Artist**:
 
-  - Python: `python sptnr.py -a artist_id`
-  - Docker Compose: `docker-compose run sptnr -a artist_id`
+  - Python: `python dztnr.py -a artist_id`
+  - Docker Compose: `docker-compose run dztnr -a artist_id`
 
 - **Process Specific Albums**:
 
-  - Python: `python sptnr.py -b album_id1 -b album_id2`
-  - Docker Compose: `docker-compose run sptnr -b album_id1 -b album_id2`
+  - Python: `python dztnr.py -b album_id1 -b album_id2`
+  - Docker Compose: `docker-compose run dztnr -b album_id1 -b album_id2`
 
 - **Process Range of Artists**:
 
-  - Python: `python sptnr.py -s 10 -l 5`
-  - Docker Compose: `docker-compose run sptnr -s 10 -l 5`
+  - Python: `python dztnr.py -s 10 -l 5`
+  - Docker Compose: `docker-compose run dztnr -s 10 -l 5`
 
 ## Resuming Interrupted Sessions
 
@@ -213,8 +213,8 @@ Check the log file for the last processed artist. The log entry contains the ind
 
 Restart the script using `-s INDEX`:
 
-- Python: `python sptnr.py -s INDEX`
-- Docker Compose: `docker-compose run sptnr -s INDEX`
+- Python: `python dztnr.py -s INDEX`
+- Docker Compose: `docker-compose run dztnr -s INDEX`
 
 ## Managing Docker Containers
 

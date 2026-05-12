@@ -42,7 +42,7 @@ LOG_DIR = "logs"
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 
-LOGFILE = os.path.join(LOG_DIR, f"spotify-popularity_{int(time.time())}.log")
+LOGFILE = os.path.join(LOG_DIR, f"deezer-rank_{int(time.time())}.log")
 
 
 class NoColorFormatter(logging.Formatter):
@@ -133,7 +133,7 @@ ALBUM_IDs = args.album if args.album else []
 START = args.start
 LIMIT = args.limit
 
-logging.info(f"{BOLD}Version:{RESET} {LIGHT_YELLOW}sptnr v{__version__}{RESET}")
+logging.info(f"{BOLD}Version:{RESET} {LIGHT_YELLOW}dztnr v{__version__}{RESET}")
 
 if args.preview:
     logging.info(f"{LIGHT_YELLOW}Preview mode, no changes will be made.{RESET}")
@@ -221,7 +221,7 @@ def process_track(track_id, artist_name, album, track_name):
         message = f"    r:{LIGHT_CYAN}{rank_str}{RESET} → ★:{LIGHT_BLUE}{rating}{RESET} | {LIGHT_GREEN}{track_name}{RESET}"
         logging.info(message)
         if PREVIEW != 1:
-            nav_url = f"{NAV_BASE_URL}/rest/setRating?u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=myapp&id={track_id}&rating={rating}"
+            nav_url = f"{NAV_BASE_URL}/rest/setRating?u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=deezer_sync&id={track_id}&rating={rating}"
             try:
                 nav_response = requests.get(nav_url)
                 if nav_response.status_code != 200:
@@ -248,7 +248,7 @@ def process_track(track_id, artist_name, album, track_name):
 
 
 def process_album(album_id):
-    nav_url = f"{NAV_BASE_URL}/rest/getAlbum?id={album_id}&u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=spotify_sync&f=json"
+    nav_url = f"{NAV_BASE_URL}/rest/getAlbum?id={album_id}&u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=deezer_sync&f=json"
     response = requests.get(nav_url).json()
 
     album_info = response["subsonic-response"]["album"]
@@ -263,7 +263,7 @@ def process_album(album_id):
 
 
 def process_artist(artist_id):
-    nav_url = f"{NAV_BASE_URL}/rest/getArtist?id={artist_id}&u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=spotify_sync&f=json"
+    nav_url = f"{NAV_BASE_URL}/rest/getArtist?id={artist_id}&u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=deezer_sync&f=json"
     response = requests.get(nav_url).json()
 
     albums = [
@@ -321,7 +321,7 @@ except ValueError as e:
 
 if ARTIST_IDs:
     for ARTIST_ID in ARTIST_IDs:
-        url = f"{NAV_BASE_URL}/rest/getArtist?id={ARTIST_ID}&u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=spotify_sync&f=json"
+        url = f"{NAV_BASE_URL}/rest/getArtist?id={ARTIST_ID}&u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=deezer_sync&f=json"
         data = fetch_data(url)
         ARTIST_NAME = data["artist"]["name"]
 
@@ -331,7 +331,7 @@ if ARTIST_IDs:
 
 elif ALBUM_IDs:
     for ALBUM_ID in ALBUM_IDs:
-        url = f"{NAV_BASE_URL}/rest/getAlbum?id={ALBUM_ID}&u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=spotify_sync&f=json"
+        url = f"{NAV_BASE_URL}/rest/getAlbum?id={ALBUM_ID}&u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=deezer_sync&f=json"
         data = fetch_data(url)
         ARTIST_NAME = data["album"]["artist"]
         ARTIST_ID = data["album"]["artistId"]
@@ -343,7 +343,7 @@ elif ALBUM_IDs:
         process_album(ALBUM_ID)
 
 else:
-    url = f"{NAV_BASE_URL}/rest/getArtists?u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=spotify_sync&f=json"
+    url = f"{NAV_BASE_URL}/rest/getArtists?u={NAV_USER}&p=enc:{HEX_ENCODED_PASS}&v=1.12.0&c=deezer_sync&f=json"
     data = fetch_data(url)
     ARTIST_DATA = [
         (artist["id"], artist["name"])

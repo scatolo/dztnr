@@ -1,10 +1,10 @@
 version: '3.8'
 
 services:
-  sptnr:
-    container_name: sptnr
-    # Uncomment the next line to use the public Docker image
-    # image: krestaino/sptnr:latest
+  dztnr:
+    container_name: dztnr
+    # Uncomment the next line to use a public Docker image
+    # image: dztnr:latest
     
     # Uncomment the next line to build the Docker image locally
     # build: .
