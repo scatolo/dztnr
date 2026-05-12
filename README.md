@@ -1,8 +1,8 @@
-# Last.fm Listeners to Navidrome Ratings (sptnr)
+# Deezer Rank to Navidrome Ratings (sptnr)
 
-This script repurposes the star ratings in Navidrome by aligning them with Last.fm global listener counts. Instead of Spotify's popularity score (0-100), it now fetches the total number of unique listeners for each track from the Last.fm API and maps them to a 1-5 star rating using a logarithmic scale. This gives a much more meaningful signal: a track with millions of listeners is globally known, while one with <1000 listeners is obscure.
+This script repurposes the star ratings in Navidrome by aligning them with Deezer's track rank. It fetches the Deezer popularity rank (0–1,000,000+) for each track via the public search API and maps it to a 1–5 star rating. Higher rank = more popular on Deezer. **No API key is required** — the Deezer API is completely open.
 
-> **Fork note**: This version replaces Spotify with Last.fm. No OAuth flow is required — only a single API key. See [Building from this fork](#building-from-this-fork) for local build instructions.
+> **This is a fork of [krestaino/sptnr](https://github.com/krestaino/sptnr) by Kevin Restaino**, which originally used Spotify's popularity score. This fork replaces Spotify with Deezer's public API, removing the need for OAuth, client secrets, or any authentication. See [Building from this fork](#building-from-this-fork) for local build instructions.
 
 ![Screenshot of script and phone](https://i.imgur.com/7NhSQFM.png)
 
@@ -10,24 +10,24 @@ This script repurposes the star ratings in Navidrome by aligning them with Last.
 
 1. [Features](#features)
 2. [Requirements](#requirements)
-3. [Getting a Last.fm API Key](#getting-a-lastfm-api-key)
-4. [Quick Start](#quick-start)
-5. [Building from this fork](#building-from-this-fork)
-6. [Using Docker Compose](#using-docker-compose)
-7. [Running Natively or Building Locally](#running-natively-or-building-locally)
-8. [Usage](#usage)
-9. [Examples](#examples)
-10. [Resuming Interrupted Sessions](#resuming-interrupted-sessions)
-11. [Managing Docker Containers](#managing-docker-containers)
-12. [Mapping Last.fm Listeners to Navidrome Ratings](#mapping-lastfm-listeners-to-navidrome-ratings)
-13. [Estimated Processing Times](#estimated-processing-times)
-14. [Importance of Accurate Metadata for Track Lookup](#importance-of-accurate-metadata-for-track-lookup)
-15. [Logs](#logs)
+3. [Quick Start](#quick-start)
+4. [Building from this fork](#building-from-this-fork)
+5. [Using Docker Compose](#using-docker-compose)
+6. [Running Natively or Building Locally](#running-natively-or-building-locally)
+7. [Usage](#usage)
+8. [Examples](#examples)
+9. [Resuming Interrupted Sessions](#resuming-interrupted-sessions)
+10. [Managing Docker Containers](#managing-docker-containers)
+11. [Mapping Deezer Rank to Navidrome Ratings](#mapping-deezer-rank-to-navidrome-ratings)
+12. [Estimated Processing Times](#estimated-processing-times)
+13. [Importance of Accurate Metadata for Track Lookup](#importance-of-accurate-metadata-for-track-lookup)
+14. [Logs](#logs)
+15. [Credits](#credits)
 
 ## Features
 
-- **Last.fm Integration**: Connects to the Last.fm API to fetch global listener counts for tracks using artist + track name lookup with `autocorrect=1`.
-- **Navidrome Integration**: Updates track ratings in Navidrome based on Last.fm listener counts.
+- **Deezer Integration**: Uses the public Deezer Search API (`api.deezer.com/search`) — no API key or authentication needed.
+- **Navidrome Integration**: Updates track ratings in Navidrome based on Deezer's popularity rank.
 - **Flexible Processing**: Process specific artists, albums, or a range of artists or albums.
 - **Preview Mode**: Run the script in preview mode to see changes without making any actual updates.
 - **Logging**: Detailed logging of the process, both in the console and to a file.
@@ -36,26 +36,12 @@ This script repurposes the star ratings in Navidrome by aligning them with Last.
 ## Requirements
 
 - Python 3.x or Docker
-- A Last.fm API key ([see below](#getting-a-lastfm-api-key))
 - Access to a Navidrome server
+- No API keys or external accounts required (Deezer API is public)
 
-**Compatibility Note**: While this script was built with Navidrome in mind, it should theoretically work on any Subsonic server. If you successfully use it with other Subsonic servers, please open an issue to let me know, so I can document it and assist others.
-
-## Getting a Last.fm API Key
-
-1. Go to [last.fm/api/account/create](https://www.last.fm/api/account/create)
-2. Fill in the form:
-   - **Application name**: any name (e.g. `sptnr`)
-   - **Application description**: short description
-   - Leave **Callback URL** and **Application homepage** empty (not needed)
-3. Submit the form. You will receive an **API Key** immediately — no approval wait.
-4. Copy the API Key; you will use it as `LASTFM_API_KEY`.
-
-> Unlike Spotify, Last.fm does not require OAuth, client secrets, or token refresh. A single API key is all you need.
+**Compatibility Note**: While this script was built with Navidrome in mind, it should theoretically work on any Subsonic server.
 
 ## Quick Start
-
-You can run the script with environment variables. Replace the placeholder values with your own:
 
 ```console
 docker build -t sptnr-local .
@@ -63,7 +49,6 @@ docker run -t \
   -e NAV_BASE_URL=your_navidrome_server_url \
   -e NAV_USER=your_navidrome_username \
   -e NAV_PASS=your_navidrome_password \
-  -e LASTFM_API_KEY=your_lastfm_api_key \
   sptnr-local
 ```
 
@@ -71,30 +56,36 @@ docker run -t \
 
 ## Building from this fork
 
-If you have cloned this fork and want to build and run the Docker image locally:
+This is a fork of [krestaino/sptnr](https://github.com/krestaino/sptnr). The main changes are:
+- **Deezer** instead of Spotify — no OAuth, no client ID/secret, no API key
+- Rating based on Deezer rank instead of Spotify popularity
+- Rate limiting at 0.2s per call
+
+Clone and build:
 
 ```bash
+git clone <this-repo-url>
+cd sptnr-main
 docker build -t sptnr-local .
 docker run -t \
   -e NAV_BASE_URL=your_navidrome_server_url \
   -e NAV_USER=your_navidrome_username \
   -e NAV_PASS=your_navidrome_password \
-  -e LASTFM_API_KEY=your_lastfm_api_key \
   sptnr-local
 ```
 
-You can also run it natively with Python after setting up a `.env` file:
+Run natively with Python:
 
 ```bash
 cp .env.example .env
-# Edit .env with your Navidrome URL, credentials, and LASTFM_API_KEY
+# Edit .env with your Navidrome URL and credentials
 pip install -r requirements.txt
 python sptnr.py -p -l 1   # preview mode, first artist only
 ```
 
 ### Using Docker Compose
 
-1. **Create `docker-compose.yml` File**: Copy the example and replace the environment variables with your own details:
+1. **Create `docker-compose.yml` File**: Copy the example and replace the environment variables:
 
    ```yaml
    version: "3.8"
@@ -107,12 +98,11 @@ python sptnr.py -p -l 1   # preview mode, first artist only
          - NAV_BASE_URL=your_navidrome_server_url
          - NAV_USER=your_navidrome_username
          - NAV_PASS=your_navidrome_password
-         - LASTFM_API_KEY=your_lastfm_api_key
        volumes:
          - ./logs:/usr/src/app/logs
    ```
 
-2. **Run the Script**: Execute the Docker Compose command to run the script:
+2. **Run the Script**:
 
    ```console
    docker-compose run sptnr
@@ -120,26 +110,24 @@ python sptnr.py -p -l 1   # preview mode, first artist only
 
 ## Running Natively or Building Locally
 
-For those who prefer running the script natively using Python or building the Docker image locally, the following steps apply:
-
 ### Running Natively (Without Docker)
 
-1. **Clone the Repository**: Clone the repository or download the necessary files (`sptnr.py`, `requirements.txt`, `.env.example`) to your local machine.
+1. **Clone the Repository**: Clone or download the necessary files (`sptnr.py`, `requirements.txt`, `.env.example`).
 
-2. **Install Python Packages**: Use the `requirements.txt` file to install dependencies:
+2. **Install Python Packages**:
 
    ```console
    pip install -r requirements.txt
    ```
 
-3. **Configure Environment Variables**: Rename `.env.example` to `.env` and fill in your details:
+3. **Configure Environment Variables**: Rename `.env.example` to `.env` and fill in your Navidrome details:
 
    ```console
    mv .env.example .env
-   # Edit the .env file with your details
+   # Edit the .env file with your Navidrome URL, user, and password
    ```
 
-4. **Run the Script**: Execute the script with Python:
+4. **Run the Script**:
 
    ```console
    python sptnr.py [options]
@@ -147,18 +135,18 @@ For those who prefer running the script natively using Python or building the Do
 
 ### Building and Running with Docker Locally
 
-1. **Clone the Repository**: Clone the repository or download the necessary files (`sptnr.py`, `requirements.txt`, `Dockerfile`, `docker-compose.yml.example`) to your local machine.
+1. **Clone the Repository** and download the necessary files.
 
-2. **Configure Docker Compose**: Rename and edit your `docker-compose.yml`:
+2. **Configure Docker Compose**: Rename and edit `docker-compose.yml`:
 
    ```console
    mv docker-compose.yml.example docker-compose.yml
    # Edit the docker-compose.yml file
    ```
 
-3. **Set the Docker Image Source**: Uncomment the line `build: .` in the `docker-compose.yml` file to build a local Docker image.
+3. **Set the Docker Image Source**: Uncomment `build: .` in `docker-compose.yml`.
 
-4. **Build and Run**: Build the Docker image and run the script:
+4. **Build and Run**:
 
    ```console
    docker-compose build
@@ -166,8 +154,6 @@ For those who prefer running the script natively using Python or building the Do
    ```
 
 ## Usage
-
-The script supports various options for flexible usage. Below are examples of how to run the script with different options, using Python and Docker Compose methods. Replace `[options]` with any of the specified options based on your needs.
 
 ### Options
 
@@ -192,6 +178,7 @@ The script supports various options for flexible usage. Below are examples of ho
    ```
 
 3. **Using Docker Run**:
+
    ```console
    docker run -t [environment variables] sptnr-local [options]
    ```
@@ -199,103 +186,99 @@ The script supports various options for flexible usage. Below are examples of ho
 ## Examples
 
 - **Preview Mode**:
-  Run the script in preview mode to see changes without making any actual updates.
 
   - Python: `python sptnr.py -p`
   - Docker Compose: `docker-compose run sptnr -p`
 
 - **Process Specific Artist**:
-  Process only one artist by specifying their ID.
 
   - Python: `python sptnr.py -a artist_id`
   - Docker Compose: `docker-compose run sptnr -a artist_id`
 
 - **Process Specific Albums**:
-  Process multiple specific albums by specifying their IDs.
 
   - Python: `python sptnr.py -b album_id1 -b album_id2`
   - Docker Compose: `docker-compose run sptnr -b album_id1 -b album_id2`
 
 - **Process Range of Artists**:
-  Process artists starting from a certain index with a limit.
+
   - Python: `python sptnr.py -s 10 -l 5`
   - Docker Compose: `docker-compose run sptnr -s 10 -l 5`
 
 ## Resuming Interrupted Sessions
 
-In cases where your session gets interrupted — for instance, if your machine goes to sleep, you encounter rate limits from Last.fm, or for any other reason that causes the script to not complete — you have the option to resume from where you left off.
+In cases where your session gets interrupted — for instance, if your machine goes to sleep or you encounter network issues — you can resume from where you left off.
 
-To determine the point of interruption, check the log file. The log entry will contain details of the artist it failed on, along with the index in a format similar to: `Artist: ARTIST_NAME (ARTIST_NAVIDROME_ID)[INDEX]`. Here, the index is enclosed in brackets.
+Check the log file for the last processed artist. The log entry contains the index in brackets: `Artist: ARTIST_NAME (ARTIST_ID)[INDEX]`.
 
-When you restart the script, use the `-s INDEX` option, where `INDEX` is the index number from the log. This tells the script to start processing from that specific artist, skipping all previously processed entries.
-
-Example command to continue from a specific point:
+Restart the script using `-s INDEX`:
 
 - Python: `python sptnr.py -s INDEX`
 - Docker Compose: `docker-compose run sptnr -s INDEX`
 
-_Note: Replace `INDEX` with the specific index number from your log file._
-
 ## Managing Docker Containers
 
-In this project, `docker-compose run` is used instead of `docker-compose up`. This choice allows for greater flexibility in passing command-line options directly to the script, which is essential for its varied operational modes. It's important to understand that `docker-compose run` and `docker run` create a new container each time they're executed. If you frequently run the script, you might accumulate a number of these containers. To manage this, the following method can be used to remove stopped Docker containers from your system.
-
-**Important Note**: This command removes **all** stopped containers on your system, not just the ones related to this script. Please ensure that you do not have any other stopped containers that you want to keep before running this command. You can check your stopped containers using `docker ps -a` to ensure that removing them won't affect your other Docker projects or setups.
+`docker-compose run` creates a new container each time it's executed. To clean up stopped containers:
 
 ```console
 docker container prune
 ```
 
-## Mapping Last.fm Listeners to Navidrome Ratings
+**Important**: This removes **all** stopped containers on your system. Check with `docker ps -a` first.
 
-The script translates Last.fm's global listener count into Navidrome's 5-star rating system using a logarithmic scale. This conversion allows you to quickly gauge a track's worldwide reach directly within Navidrome. The mapping is as follows:
+## Mapping Deezer Rank to Navidrome Ratings
 
-| Listeners         | Rating | Description            |
-| ----------------- | ------ | ---------------------- |
-| 0 – 999           | 0      | Unknown / Niche        |
-| 1,000 – 49,999    | 1      | Low popularity         |
-| 50,000 – 199,999  | 2      | Moderately popular     |
-| 200,000 – 999,999 | 3      | Popular                |
-| 1,000,000 – 4,999,999 | 4 | Very popular         |
-| 5,000,000+        | 5      | Globally known / Viral |
+The script translates Deezer's popularity rank into Navidrome's 5-star rating system:
+
+| Deezer Rank        | Rating | Description        |
+| ------------------ | ------ | ------------------ |
+| 0 – 9,999          | 0      | Unknown / Niche    |
+| 10,000 – 99,999    | 1      | Low popularity     |
+| 100,000 – 299,999  | 2      | Moderately popular |
+| 300,000 – 599,999  | 3      | Popular            |
+| 600,000 – 849,999  | 4      | Very popular       |
+| 850,000+           | 5      | Globally known     |
 
 ## Estimated Processing Times
 
-With a `time.sleep(0.2)` delay between Last.fm API calls, each track takes roughly 0.2–0.5 seconds depending on network latency:
+With a `time.sleep(0.2)` delay between Deezer API calls:
 
-| Library Size (Number of Tracks) | Estimated Processing Time |
-| ------------------------------- | ------------------------- |
-| 1,000                           | ~5 minutes                |
-| 5,000                           | ~25 minutes               |
-| 10,000                          | ~50 minutes               |
-| 50,000                          | ~4 hours                  |
-| 100,000                         | ~8 hours                  |
+| Library Size (Tracks) | Estimated Time |
+| --------------------- | -------------- |
+| 1,000                 | ~5 minutes     |
+| 5,000                 | ~25 minutes    |
+| 10,000                | ~50 minutes    |
+| 50,000                | ~4 hours       |
+| 100,000               | ~8 hours       |
 
-These estimates assume a stable network connection and Last.fm API availability. Actual times may vary.
+These estimates assume a stable network connection. Actual times may vary.
 
 ## Importance of Accurate Metadata for Track Lookup
 
-The script uses Last.fm's `track.getInfo` endpoint with `autocorrect=1`, which helps correct minor spelling mistakes and canonical artist/track names. However, accurate artist and track titles still improve the match rate significantly.
+The script searches Deezer using the query `artist + track`. Deezer's search is fairly forgiving, but **accurate artist and track titles** significantly improve the match rate.
 
-For best results, tag your music library with **MusicBrainz** before running the script. MusicBrainz provides reliable and standardized music metadata that aligns well with Last.fm's database.
+For best results, tag your music library with **MusicBrainz** before running the script.
 
 ## Logs
 
-Logs are stored in the `logs` directory, and each script execution creates a new log file marked with a timestamp. Since these logs are retained indefinitely, you should manually delete old logs if they are no longer needed.
+Logs are stored in the `logs` directory, and each script execution creates a new log file marked with a timestamp. Delete old logs manually if they are no longer needed.
 
 ### Log Format
 
-The script logs its actions in a straightforward format, using `l:123456 → r:3` to summarize operations:
+The script uses `rank → ★rating` format:
 
-- `l:123456` indicates the Last.fm global listener count, where `123456` is the specific value.
-- `→` symbolizes the mapping performed by the script.
-- `r:3` shows the Navidrome rating assigned based on the listener count.
+- `r:123456` — Deezer rank (0–1,000,000+)
+- `→ ★:3` — Navidrome star rating assigned
+
+Example: `r:450000 → ★:3 | Song Title`
 
 ### Terminal Output Colors
 
-In the terminal, certain lines are color-coded for quick identification:
+- **Red**: Tracks not found on Deezer (shown as `??`)
+- **Green**: Successful matches and processing
 
-- **Red**: Denotes tracks not matched with Last.fm's data. In the logs, these are shown with `??` for listener counts.
-- **Green**: Indicates successful matches and processing of tracks.
+These colors are exclusive to the terminal output and are not included in the log files.
 
-These colors are exclusive to the terminal output for visual clarity and are not included in the log files to facilitate easier file parsing.
+## Credits
+
+This project is a fork of **[krestaino/sptnr](https://github.com/krestaino/sptnr)** by **Kevin Restaino**, who originally created the script to sync Spotify popularity with Navidrome ratings. This fork adapts the codebase to use Deezer's public API instead, removing the need for any authentication or API keys while preserving all the original Navidrome integration logic, CLI flags, and Docker support.
