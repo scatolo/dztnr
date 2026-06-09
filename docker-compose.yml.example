@@ -3,10 +3,10 @@ version: '3.8'
 services:
   dztnr:
     container_name: dztnr
-    # Uncomment the next line to use a public Docker image
-    # image: dztnr:latest
-    
-    # Uncomment the next line to build the Docker image locally
+    # Use the pre-built GHCR image (recommended)
+    image: ghcr.io/scatolo/dztnr:latest
+
+    # Or build locally — uncomment the next line and comment out 'image:'
     # build: .
 
     environment:

@@ -2,7 +2,7 @@
 
 This script repurposes the star ratings in Navidrome by aligning them with Deezer's track rank. It fetches the Deezer popularity rank (0–1,000,000+) for each track via the public search API and maps it to a 1–5 star rating. Higher rank = more popular on Deezer. **No API key is required** — the Deezer API is completely open.
 
-> **This is a fork of [krestaino/sptnr](https://github.com/krestaino/sptnr) by Kevin Restaino**, which originally used Spotify's popularity score. This fork replaces Spotify with Deezer's public API, removing the need for OAuth, client secrets, or any authentication. See [Building from this fork](#building-from-this-fork) for local build instructions.
+> **This is a fork of [krestaino/sptnr](https://github.com/krestaino/sptnr) by Kevin Restaino**, which originally used Spotify's popularity score. This fork replaces Spotify with Deezer's public API, removing the need for OAuth, client secrets, or any authentication.
 
 ![Screenshot of script and phone](https://i.imgur.com/7NhSQFM.png)
 
@@ -10,10 +10,10 @@ This script repurposes the star ratings in Navidrome by aligning them with Deeze
 
 1. [Features](#features)
 2. [Requirements](#requirements)
-3. [Quick Start](#quick-start)
+3. [Quick Start (GHCR pre-built image)](#quick-start-ghcr-pre-built-image)
 4. [Building from this fork](#building-from-this-fork)
 5. [Using Docker Compose](#using-docker-compose)
-6. [Running Natively or Building Locally](#running-natively-or-building-locally)
+6. [Running Natively (Python)](#running-natively-python)
 7. [Usage](#usage)
 8. [Examples](#examples)
 9. [Resuming Interrupted Sessions](#resuming-interrupted-sessions)
@@ -22,7 +22,8 @@ This script repurposes the star ratings in Navidrome by aligning them with Deeze
 12. [Estimated Processing Times](#estimated-processing-times)
 13. [Importance of Accurate Metadata for Track Lookup](#importance-of-accurate-metadata-for-track-lookup)
 14. [Logs](#logs)
-15. [Credits](#credits)
+15. [CI/CD (GitHub Actions)](#cicd-github-actions)
+16. [Credits](#credits)
 
 ## Features
 
@@ -31,61 +32,106 @@ This script repurposes the star ratings in Navidrome by aligning them with Deeze
 - **Flexible Processing**: Process specific artists, albums, or a range of artists or albums.
 - **Preview Mode**: Run the script in preview mode to see changes without making any actual updates.
 - **Logging**: Detailed logging of the process, both in the console and to a file.
-- **Docker Support**: Run the script in a Docker container for consistent environments and ease of use.
+- **Docker Support**: Pre-built image available on GitHub Container Registry (GHCR) with multi-arch support (amd64 + arm64).
 
 ## Requirements
 
-- Python 3.x or Docker
+- Docker **or** Python 3.x
 - Access to a Navidrome server
 - No API keys or external accounts required (Deezer API is public)
 
 **Compatibility Note**: While this script was built with Navidrome in mind, it should theoretically work on any Subsonic server.
 
-## Quick Start
+## Quick Start (GHCR pre-built image)
+
+The easiest way to run dztnr is using the pre-built Docker image published to GitHub Container Registry on every push to `main`. It supports both `linux/amd64` and `linux/arm64`.
 
 ```console
-docker build -t dztnr-local .
-docker run -t \
-  -e NAV_BASE_URL=your_navidrome_server_url \
+docker run -t --rm \
+  -e NAV_BASE_URL=https://your_navidrome.example.com \
   -e NAV_USER=your_navidrome_username \
   -e NAV_PASS=your_navidrome_password \
-  dztnr-local
+  ghcr.io/scatolo/dztnr:latest
 ```
 
-**Note**: The `-t` flag is used to allocate a pseudo-terminal which assists in displaying colored and bold text in the terminal output, which this script uses.
+To pin a specific version (check [packages](https://github.com/scatolo/dztnr/pkgs/container/dztnr) for available tags):
+
+```console
+docker run -t --rm \
+  -e NAV_BASE_URL=https://your_navidrome.example.com \
+  -e NAV_USER=your_navidrome_username \
+  -e NAV_PASS=your_navidrome_password \
+  ghcr.io/scatolo/dztnr:1.3.0
+```
+
+> **Tip**: Use `--rm` to auto-remove the container when it finishes. If you want persistent logs, add `-v ./logs:/usr/src/app/logs`.
+
+**First run?** Start in preview mode with a single artist to test connectivity:
+
+```console
+docker run -t --rm \
+  -e NAV_BASE_URL=https://your_navidrome.example.com \
+  -e NAV_USER=your_admin_user \
+  -e NAV_PASS=your_admin_password \
+  ghcr.io/scatolo/dztnr:latest -p -l 1
+```
+
+(`-p` = preview, no writes; `-l 1` = only the first artist)
 
 ## Building from this fork
 
 This is a fork of [krestaino/sptnr](https://github.com/krestaino/sptnr). The main changes are:
 - **Deezer** instead of Spotify — no OAuth, no client ID/secret, no API key
 - Rating based on Deezer rank instead of Spotify popularity
-- Rate limiting at 0.2s per call
+- Rate limiting at 0.2s per API call
+- Pre-built images published to GHCR via GitHub Actions
 
-Clone and build:
+### Build locally
 
 ```bash
-git clone <this-repo-url>
-cd dztnr-main
+git clone https://github.com/scatolo/dztnr.git
+cd dztnr
 docker build -t dztnr-local .
-docker run -t \
-  -e NAV_BASE_URL=your_navidrome_server_url \
+docker run -t --rm \
+  -e NAV_BASE_URL=https://your_navidrome.example.com \
   -e NAV_USER=your_navidrome_username \
   -e NAV_PASS=your_navidrome_password \
   dztnr-local
 ```
 
-Run natively with Python:
+### Run natively with Python
 
 ```bash
+git clone https://github.com/scatolo/dztnr.git
+cd dztnr
 cp .env.example .env
 # Edit .env with your Navidrome URL and credentials
 pip install -r requirements.txt
 python dztnr.py -p -l 1   # preview mode, first artist only
 ```
 
-### Using Docker Compose
+## Using Docker Compose
 
-1. **Create `docker-compose.yml` File**: Copy the example and replace the environment variables:
+1. **Create `docker-compose.yml`:** copy `docker-compose.yml.example` and fill in your Navidrome details.
+
+   **Using the pre-built GHCR image (recommended):**
+
+   ```yaml
+   version: "3.8"
+
+   services:
+     dztnr:
+       container_name: dztnr
+       image: ghcr.io/scatolo/dztnr:latest
+       environment:
+         - NAV_BASE_URL=https://your_navidrome.example.com
+         - NAV_USER=your_navidrome_username
+         - NAV_PASS=your_navidrome_password
+       volumes:
+         - ./logs:/usr/src/app/logs
+   ```
+
+   **Or build locally:**
 
    ```yaml
    version: "3.8"
@@ -95,136 +141,125 @@ python dztnr.py -p -l 1   # preview mode, first artist only
        container_name: dztnr
        build: .
        environment:
-         - NAV_BASE_URL=your_navidrome_server_url
+         - NAV_BASE_URL=https://your_navidrome.example.com
          - NAV_USER=your_navidrome_username
          - NAV_PASS=your_navidrome_password
        volumes:
          - ./logs:/usr/src/app/logs
    ```
 
-2. **Run the Script**:
+2. **Run the script:**
 
    ```console
-   docker-compose run dztnr
+   docker-compose run --rm dztnr
    ```
 
-## Running Natively or Building Locally
+   With options:
 
-### Running Natively (Without Docker)
+   ```console
+   docker-compose run --rm dztnr -p -l 1
+   ```
 
-1. **Clone the Repository**: Clone or download the necessary files (`dztnr.py`, `requirements.txt`, `.env.example`).
+## Running Natively (Python)
 
-2. **Install Python Packages**:
+1. **Clone the repository** or download the necessary files (`dztnr.py`, `requirements.txt`, `.env.example`).
+
+2. **Install dependencies:**
 
    ```console
    pip install -r requirements.txt
    ```
 
-3. **Configure Environment Variables**: Rename `.env.example` to `.env` and fill in your Navidrome details:
+3. **Configure environment variables.** Rename `.env.example` to `.env` and fill in your Navidrome credentials:
 
-   ```console
-   mv .env.example .env
-   # Edit the .env file with your Navidrome URL, user, and password
+   ```bash
+   cp .env.example .env
+   # Edit .env — only NAV_BASE_URL, NAV_USER, NAV_PASS are needed
    ```
 
-4. **Run the Script**:
+4. **Run the script:**
 
    ```console
    python dztnr.py [options]
-   ```
-
-### Building and Running with Docker Locally
-
-1. **Clone the Repository** and download the necessary files.
-
-2. **Configure Docker Compose**: Rename and edit `docker-compose.yml`:
-
-   ```console
-   mv docker-compose.yml.example docker-compose.yml
-   # Edit the docker-compose.yml file
-   ```
-
-3. **Set the Docker Image Source**: Uncomment `build: .` in `docker-compose.yml`.
-
-4. **Build and Run**:
-
-   ```console
-   docker-compose build
-   docker-compose run dztnr [options]
    ```
 
 ## Usage
 
 ### Options
 
-- `-p, --preview`: Execute the script in preview mode (no changes made).
-- `-a, --artist ARTIST_ID`: Process a specific artist. Multiple artists can be specified.
-- `-b, --album ALBUM_ID`: Process a specific album. Multiple albums can be specified.
-- `-s, --start START_INDEX`: Start processing from the artist at the specified index (0-based).
-- `-l, --limit LIMIT`: Limit the processing to a specific number of artists from the start index.
+| Flag | Long form  | Description |
+|------|-----------|-------------|
+| `-p` | `--preview` | Preview mode — no changes written to Navidrome |
+| `-a` | `--artist ID` | Process a specific artist by Navidrome ID (repeatable) |
+| `-b` | `--album ID` | Process a specific album by Navidrome ID (repeatable) |
+| `-s` | `--start N` | Start processing from artist at index N (0-based) |
+| `-l` | `--limit N` | Process at most N artists from the start index |
+| `-v` | `--version` | Print version and exit |
 
 ### Command Formats
 
-1. **Running Natively (Python)**:
-
-   ```console
-   python dztnr.py [options]
-   ```
-
-2. **Using Docker Compose**:
-
-   ```console
-   docker-compose run dztnr [options]
-   ```
-
-3. **Using Docker Run**:
-
-   ```console
-   docker run -t [environment variables] dztnr-local [options]
-   ```
+| Method       | Command |
+|-------------|---------|
+| **GHCR image** | `docker run -t --rm -e NAV_BASE_URL=... -e NAV_USER=... -e NAV_PASS=... ghcr.io/scatolo/dztnr:latest [options]` |
+| **Local Docker** | `docker run -t --rm -e NAV_BASE_URL=... -e NAV_USER=... -e NAV_PASS=... dztnr-local [options]` |
+| **Docker Compose (GHCR)** | `docker-compose run --rm dztnr [options]` |
+| **Python** | `python dztnr.py [options]` |
 
 ## Examples
 
-- **Preview Mode**:
+### Preview Mode
+See what would be updated without making changes:
+```console
+python dztnr.py -p
+```
+```console
+docker-compose run --rm dztnr -p
+```
 
-  - Python: `python dztnr.py -p`
-  - Docker Compose: `docker-compose run dztnr -p`
+### Process a Single Artist
+```console
+python dztnr.py -a <navidrome_artist_id>
+```
+```console
+docker run -t --rm -e NAV_BASE_URL=... -e NAV_USER=... -e NAV_PASS=... ghcr.io/scatolo/dztnr:latest -a <navidrome_artist_id>
+```
 
-- **Process Specific Artist**:
+### Process a Range of Artists
+Start from artist #10 and process the next 5:
+```console
+python dztnr.py -s 10 -l 5
+```
 
-  - Python: `python dztnr.py -a artist_id`
-  - Docker Compose: `docker-compose run dztnr -a artist_id`
-
-- **Process Specific Albums**:
-
-  - Python: `python dztnr.py -b album_id1 -b album_id2`
-  - Docker Compose: `docker-compose run dztnr -b album_id1 -b album_id2`
-
-- **Process Range of Artists**:
-
-  - Python: `python dztnr.py -s 10 -l 5`
-  - Docker Compose: `docker-compose run dztnr -s 10 -l 5`
+### Process Specific Albums
+```console
+python dztnr.py -b <album_id_1> -b <album_id_2>
+```
 
 ## Resuming Interrupted Sessions
 
-In cases where your session gets interrupted — for instance, if your machine goes to sleep or you encounter network issues — you can resume from where you left off.
+If the session gets interrupted (network error, machine sleep, etc.), you can resume from where you left off.
 
 Check the log file for the last processed artist. The log entry contains the index in brackets: `Artist: ARTIST_NAME (ARTIST_ID)[INDEX]`.
 
-Restart the script using `-s INDEX`:
+Restart with `-s INDEX`:
 
-- Python: `python dztnr.py -s INDEX`
-- Docker Compose: `docker-compose run dztnr -s INDEX`
+```console
+python dztnr.py -s 42
+```
+
+```console
+docker run -t --rm -e ... ghcr.io/scatolo/dztnr:latest -s 42
+```
 
 ## Managing Docker Containers
 
-`docker-compose run` creates a new container each time it's executed. To clean up stopped containers:
+`docker run` and `docker-compose run` create a new container each time. Use `--rm` to auto-remove them on exit, or clean up manually:
 
 ```console
 docker container prune
 ```
 
-**Important**: This removes **all** stopped containers on your system. Check with `docker ps -a` first.
+**Warning**: This removes **all** stopped containers on your system. Check with `docker ps -a` first.
 
 ## Mapping Deezer Rank to Navidrome Ratings
 
@@ -255,29 +290,35 @@ These estimates assume a stable network connection. Actual times may vary.
 
 ## Importance of Accurate Metadata for Track Lookup
 
-The script searches Deezer using the query `artist + track`. Deezer's search is fairly forgiving, but **accurate artist and track titles** significantly improve the match rate.
-
-For best results, tag your music library with **MusicBrainz** before running the script.
+The script searches Deezer using the query `artist + track`. Deezer's search is fairly forgiving, but **accurate artist and track titles** significantly improve the match rate. Tag your music library with **MusicBrainz** for best results.
 
 ## Logs
 
-Logs are stored in the `logs` directory, and each script execution creates a new log file marked with a timestamp. Delete old logs manually if they are no longer needed.
+Logs are stored in the `logs/` directory. Each execution creates a new log file named `deezer-rank_<timestamp>.log`. Delete old logs manually if needed.
 
 ### Log Format
 
-The script uses `rank → ★rating` format:
+```
+r:450000 → ★:3 | Song Title
+```
 
-- `r:123456` — Deezer rank (0–1,000,000+)
-- `→ ★:3` — Navidrome star rating assigned
-
-Example: `r:450000 → ★:3 | Song Title`
+- `r:<number>` — Deezer rank (0–1,000,000+), or `??` if not found
+- `→ ★:<rating>` — Navidrome star rating assigned (0–5)
 
 ### Terminal Output Colors
 
-- **Red**: Tracks not found on Deezer (shown as `??`)
-- **Green**: Successful matches and processing
+- **Green** — Track matched and processed
+- **Red** — Track not found on Deezer (`??`)
 
-These colors are exclusive to the terminal output and are not included in the log files.
+Colors are terminal-only and stripped from log files.
+
+## CI/CD (GitHub Actions)
+
+On every push to `main`, a GitHub Actions workflow (`.github/workflows/docker-ghcr.yml`) builds a multi-arch Docker image (`linux/amd64` + `linux/arm64`) tagged with the version from the `VERSION` file and `latest`, then pushes it to **GitHub Container Registry** at `ghcr.io/scatolo/dztnr`.
+
+Pull requests also trigger a build (amd64 only, no push) to validate the Dockerfile.
+
+Available tags: [github.com/scatolo/dztnr/pkgs/container/dztnr](https://github.com/scatolo/dztnr/pkgs/container/dztnr)
 
 ## Credits
 
